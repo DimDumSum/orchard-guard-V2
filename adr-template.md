@@ -1,0 +1,198 @@
+# OrchardGuard V2 — Architecture Decision Records (ADRs)
+
+> **Purpose.** Short, durable records of architecture decisions made after the main planning doc is committed. Every non-trivial decision during V2 development gets an ADR.
+> **Status.** Practice and template. First ADR written when the first post-planning-doc decision arises.
+> **Why.** The planning doc captures what was decided before code. ADRs capture what's decided during and after. Future-you (and Claude Code in future sessions) will thank you.
+
+---
+
+## What an ADR Is
+
+An ADR is a one-page markdown file that records:
+
+- **The decision** — what was chosen
+- **The context** — what constraints or problem drove the decision
+- **The alternatives considered** — what else was on the table
+- **The consequences** — what follows from choosing this
+
+ADRs are immutable once committed. If a decision is later reversed or revised, a new ADR supersedes the old one; the old one stays in the repo with a "superseded by" note.
+
+## When to Write an ADR
+
+Write one when:
+
+- A decision affects multiple files or subsystems
+- A decision has a reasonable alternative that was rejected
+- A decision will be non-obvious to a reader six months later
+- A decision reverses or revises a prior ADR or planning-doc commitment
+
+Don't write one for:
+
+- Trivial code choices (variable names, local refactors)
+- Decisions already covered in the planning doc (unless revising)
+- Bug fixes
+
+If you're unsure, err on the side of writing one. ADRs are cheap; mystery decisions are expensive.
+
+## Location and Naming
+
+ADRs live in `docs/adrs/`. Files are named `NNNN-short-kebab-title.md` where NNNN is the zero-padded sequence number (`0001`, `0002`, ...). Numbers never reuse even if an ADR is superseded.
+
+Example filenames:
+
+```
+docs/adrs/0001-drizzle-over-prisma.md
+docs/adrs/0002-clerk-for-authentication.md
+docs/adrs/0003-unified-applications-table.md
+docs/adrs/0004-supersede-0001-switch-to-prisma.md
+```
+
+## Template
+
+Copy into a new file and fill in.
+
+```markdown
+# ADR NNNN: <Short Title>
+
+- **Status:** Proposed | Accepted | Superseded by ADR-XXXX
+- **Date:** YYYY-MM-DD
+- **Deciders:** <author, and anyone else involved>
+
+## Context
+
+<What problem or situation prompted this decision? What constraints are in play —
+technical, business, time, team, resource? Keep this concrete; a reader should
+be able to understand what was at stake without prior knowledge.>
+
+## Decision
+
+<The single choice that was made, stated plainly.>
+
+## Alternatives Considered
+
+<For each real alternative, a paragraph with the pros and the reason it wasn't chosen.
+If there were no real alternatives, say so — it's informative.>
+
+### Alternative A: <name>
+
+<Pros. Cons. Reason rejected.>
+
+### Alternative B: <name>
+
+<Pros. Cons. Reason rejected.>
+
+## Consequences
+
+<What follows from this decision?>
+
+- **Positive consequences.** <what this enables or improves>
+- **Negative consequences.** <what this costs or constrains>
+- **Neutral consequences.** <what simply changes>
+- **Follow-up work.** <any tasks this creates>
+
+## Related
+
+- Planning doc section: <e.g., Section 9.4>
+- Related ADRs: <ADR-XXXX, ADR-YYYY>
+- Related issues / PRs: <links>
+```
+
+## Worked Example
+
+```markdown
+# ADR 0001: Drizzle over Prisma for V2 ORM
+
+- **Status:** Accepted
+- **Date:** 2026-04-15
+- **Deciders:** [author]
+
+## Context
+
+V2 needs a TypeScript ORM to manage the Postgres schema, generate migrations,
+and provide typed queries. The planning document (Section 9.4) recommended
+Drizzle as primary with Prisma as alternative. This ADR records the decision
+made at Phase 1 start.
+
+V2's schema (Section 3) uses RLS policies, partitioning, JSONB columns, and
+custom Postgres types. The ORM's ability to fit those features without forcing
+frequent raw-SQL fallbacks matters.
+
+## Decision
+
+Adopt Drizzle ORM for V2.
+
+## Alternatives Considered
+
+### Alternative A: Prisma
+
+Prisma has superior developer experience and a much larger community. Its
+schema-definition language is concise and its generated client is ergonomic.
+Rejected because: (1) Prisma's relational query builder has historically
+needed raw-SQL escape hatches for RLS policies, partitioning, and JSONB-heavy
+queries; (2) V2's schema is at the complexity threshold where those escape
+hatches would be frequent; (3) Drizzle's closer-to-SQL approach fits V2's
+schema sophistication with less fighting.
+
+### Alternative B: Raw SQL with postgres.js + Zod
+
+Maximum control, no ORM overhead, explicit query plans. Rejected because:
+boilerplate per query is higher than Drizzle's, and V2 has a lot of
+CRUD-style operations where the ORM saves real time.
+
+## Consequences
+
+- **Positive:** Clean integration with Postgres-specific features used in V2.
+  Type safety flows from schema to queries without sacrificing SQL clarity.
+- **Negative:** Smaller community than Prisma; fewer blog posts to search when
+  hitting edge cases. Some Prisma-familiar collaborators would have a ramp.
+- **Neutral:** Schema migrations generated by `drizzle-kit`; dev workflow
+  differs from Prisma's `prisma migrate dev` in small ways.
+- **Follow-up:** Set up `drizzle-kit` in CI. Document the migration workflow
+  in the dev environment setup guide.
+
+## Related
+
+- Planning doc Section 9.4 — ORM and Query Layer
+- Planning doc Section 3 — Data Model (uses RLS, partitioning, JSONB)
+```
+
+## ADR Index
+
+Optional but useful: a `docs/adrs/README.md` that lists every ADR with its title, status, and a one-line summary. Kept current as ADRs are added.
+
+```markdown
+# Architecture Decision Records
+
+| # | Status | Title |
+|---|---|---|
+| 0001 | Accepted | Drizzle over Prisma for V2 ORM |
+| 0002 | Accepted | Clerk for authentication |
+| 0003 | Accepted | Unified `applications` table with category enum |
+| 0004 | Superseded by 0012 | ... |
+```
+
+## Superseding an ADR
+
+When a decision is revised:
+
+1. Write a new ADR describing the new decision. Include a "Supersedes ADR-NNNN" line in the context.
+2. Edit the old ADR's status to `Superseded by ADR-XXXX`. Do not change the old ADR's content beyond the status line and the link.
+3. Update the index.
+
+The old ADR stays in the repo as historical record. Future readers can see what changed and why.
+
+## Anti-patterns to Avoid
+
+- **Writing ADRs after the fact, as documentation theater.** An ADR is most valuable written while the alternatives are fresh and the context hasn't been forgotten.
+- **Treating ADRs as contracts.** They record reasoning at a point in time. Revising them via supersede-ADRs is fine and expected.
+- **Skipping the alternatives.** An ADR without alternatives considered is half-written; the reasoning is not recoverable.
+- **Trying to cram a planning-doc-scale decision into an ADR.** If the decision needs more than 1–2 pages, write a design doc instead (or amend the planning doc) and let the ADR link to it.
+
+## Related Files
+
+- Planning document (`orchardguard-v2-plan.md`) — the meta-ADR that governs V2's initial posture
+- Dev environment setup — bootstrap reference
+
+---
+
+> **End of ADR practice doc.** First ADR gets written when the first decision arises.
